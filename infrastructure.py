@@ -3,42 +3,84 @@ import numpy as np
 import random
 from numpy import cumsum
 from numpy.random import rand
+from collections.abc import Iterable
+
 class Game(ABC):
+    """
+    Encodes information about the game.
+
+    Attributes:
+    ---------------
+        player_count:
+            number of players in the game
+        action_count:
+            number of possible actions
+    """
+    @abstractmethod
     def __init__(self):
-        self.player_count = 0
-        self.action_count = 0
+        self.player_count: int= 0
+        self.action_count: int = 0
         
     @abstractmethod
-    def utility(self, action):
+    def utility(self, action: Iterable, index: int) -> float:
         """
         Args:
         ----------------------
         action:
-            array; action[i] = action of player i
+            action[i] = action of player i
+        index:
+            index of player
         
         Output:
         ----------------------
-            arr[i] = utility of player i
+            Utility of player
+
         """
         pass
 
+    # def utility_arr(self, action: int) -> Iterable:
+    #     """
+    #     Args:
+    #     ----------------------
+    #     action:
+    #         action[i] = action of player i
+        
+    #     Output:
+    #     ----------------------
+    #         arr[i] = utility of player i
+    #     """
+    #     return [self.utility(action, i) for i in range(self.player_count)]
+
 class Agent(ABC):
-    def __init__(self, game: Game, index):
+    def __init__(self, game: Game, index: int):
         """
-        Agents can keep track of certain statistics, such as regret.
+        Encodes information about a player.
+
+        Attributes:
+        --------------
+        game:
+            Game object repersenting what game the agent is playing
+        index:
+            A label for the agent
+        strategy:
+            A vector of weights for each action. The agent will act according to this array on each round
+        total_utility:
+            Total utility for the agent throughout the game.
         """
-        self.game = game
-        self.index = index
-        self.strategy = np.ones(game.action_count) / game.action_count
-        self.total_utility = 0
+        self.game: Game = game
+        self.index:int = index
+        self.strategy: Iterable = np.ones(game.action_count) / game.action_count
+        self.total_utility: float = 0
         
-        
-    def action(self):
+    def action(self) -> int:
+        """
+        Returns the action of the agent.
+        """
         return random.choices(range(self.game.action_count), weights=self.strategy)[0]
     
-    def update(self, actions):
+    def update(self, actions: Iterable):
         """
-        Takes as input the actions of all agents in the round
+        Updates the 
         """
         chosen_utility = self.game.utility(actions = actions, index = self.index)
         self.total_utility += chosen_utility

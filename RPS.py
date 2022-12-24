@@ -2,11 +2,11 @@ from infrastructure import *
 
 class RPS(Game):
     def __init__(self):
-        super().__init__()
         self.action_count = 3
         self.player_count = 2
+        super().__init__()
 
-    def utility(self, actions, index):
+    def _utility(self, index: int, *actions: Iterable) -> float:
         if index == 0:
             a, b = actions
         else:
@@ -29,7 +29,7 @@ class RPS_Rock_Double(RPS):
     def __init__(self):
         super().__init__()
     
-    def utility(self, actions, index):
+    def _utility(self, index: int, *actions: Iterable) -> float:
         if index == 0:
             a, b = actions
         else:

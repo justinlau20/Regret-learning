@@ -18,11 +18,13 @@ class Game(ABC):
     """
     @abstractmethod
     def __init__(self):
-        self.player_count: int= 0
-        self.action_count: int = 0
-        
+        self.utility = np.vectorize(self._utility, excluded=['self', 'index'])
+        self.payoff_matrix:Iterable = [self.utility(i, *np.meshgrid(
+                                        *(range(self.action_count) for j in range(self.player_count))))
+                                         for i in range(self.player_count)]
+
     @abstractmethod
-    def utility(self, action: Iterable, index: int) -> float:
+    def _utility(self, index: int, *actions: Iterable) -> float:
         """
         Args:
         ----------------------
@@ -37,19 +39,6 @@ class Game(ABC):
 
         """
         pass
-
-    # def utility_arr(self, action: int) -> Iterable:
-    #     """
-    #     Args:
-    #     ----------------------
-    #     action:
-    #         action[i] = action of player i
-        
-    #     Output:
-    #     ----------------------
-    #         arr[i] = utility of player i
-    #     """
-    #     return [self.utility(action, i) for i in range(self.player_count)]
 
 class Agent(ABC):
     def __init__(self, game: Game, index: int):
@@ -77,28 +66,29 @@ class Agent(ABC):
         Returns the action of the agent.
         """
         return random.choices(range(self.game.action_count), weights=self.strategy)[0]
-    
+
     def update(self, actions: Iterable):
         """
         Updates the 
         """
-        chosen_utility = self.game.utility(actions = actions, index = self.index)
+        chosen_utility = self.game.payoff_matrix[self.index][actions]
         self.total_utility += chosen_utility
         return chosen_utility
 
 class Regret_Minimisation_Agent(Agent):
-    def __init__(self, game, index):
+    def __init__(self, game: Game, index: int):
         super().__init__(game, index)
-        self.regrets = np.zeros(self.game.action_count)
-        self.strategy_sum = np.copy(self.strategy)
+        self.regrets:np.array = np.zeros(self.game.action_count)
+        self.strategy_sum: np.array = np.copy(self.strategy)
     
-    def update(self, actions):
+    def update(self, actions: tuple):
         chosen_utility = super().update(actions)
         
         for i in range(self.game.action_count):
             temp = list(actions)
             temp[self.index] = i
-            action_i_utility = self.game.utility(temp, self.index)
+            temp = tuple(temp)
+            action_i_utility: float = self.game.payoff_matrix[self.index][temp]
             self.regrets[i] += action_i_utility - chosen_utility
             
         self.strategy = np.array([i if i >= 0 else 0 for i in self.regrets ])
@@ -117,7 +107,7 @@ class Trainer:
     
     def train(self, n, out=True):
         for i in range(n):
-            action = [agent.action() for agent in self.agents]
+            action = tuple(agent.action() for agent in self.agents)
             for agent in self.agents:
                 agent.update(action)
 

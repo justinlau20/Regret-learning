@@ -18,9 +18,12 @@ class Game(ABC):
     """
     @abstractmethod
     def __init__(self):
+        pass
+    
+    def _setup(self):
         self.utility = np.vectorize(self._utility, excluded=['self', 'index'])
         self.payoff_matrix:Iterable = [self.utility(i, *np.meshgrid(
-                                        *(range(self.action_count) for j in range(self.player_count))))
+                                        *(range(self.action_count) for j in range(self.player_count)), indexing='ij'))
                                          for i in range(self.player_count)]
 
     @abstractmethod
@@ -90,14 +93,16 @@ class Regret_Minimisation_Agent(Agent):
             temp = tuple(temp)
             action_i_utility: float = self.game.payoff_matrix[self.index][temp]
             self.regrets[i] += action_i_utility - chosen_utility
-            
-        self.strategy = np.array([i if i >= 0 else 0 for i in self.regrets ])
+        
+
+        # self.strategy = np.array([i if i >= 0 else 0 for i in self.regrets])
+        self.strategy = np.maximum(0, self.regrets)
         normalising_const = sum(self.strategy)
         
         if normalising_const <=0:
             self.strategy = np.ones(self.game.action_count) / self.game.action_count
         else:
-            self.strategy /= sum(self.strategy)
+            self.strategy /= normalising_const
         self.strategy_sum += self.strategy
 
 class Trainer:
@@ -110,16 +115,35 @@ class Trainer:
             action = tuple(agent.action() for agent in self.agents)
             for agent in self.agents:
                 agent.update(action)
-
-        if out:
-            for agent in self.agents:
+        strats = []
+        for agent in self.agents:
+            temp = agent.strategy_sum / sum(agent.strategy_sum)
+            strats.append(temp)
+            if out:
                 print(f"Utility of Agent {agent.index} is {agent.total_utility}")
-                if isinstance(agent, Regret_Minimisation_Agent) :
-                    print(agent.strategy_sum / sum(agent.strategy_sum))
+                print(np.round(temp, 3))
+        return np.array(strats)
+
+class Evaluation():
+    def __init__(self, game: Game, rounds, sample_size) -> None:
+        self.sample_size = sample_size
+        self.rounds = rounds
+        self.outcomes = np.array([find_Nash(game, iterations=rounds) for i in range(sample_size)])
+        self.average_strategy = np.average(self.outcomes, axis= (0, 1))
+        self.sds = np.std(self.outcomes, axis=0)
+        
+def train_repeatedly(game: Game, each_train, sample_size):
+    strats = np.empty((0, game.player_count, game.action_count))
+    
+    for i in range(sample_size):
+        strats = np.r_[strats, [find_Nash(game, iterations=each_train)]]
+    
+    for j in range(game.player_count):
+        print(f"Standard deviation of strategy of player {j} is {np.sqrt(strats[:, j].var(axis=0))}")
 
 def find_Nash(game: Game, iterations=100000):
     agents = [Regret_Minimisation_Agent(game, i) for i in range(game.player_count)]
-    Trainer(game, agents).train(iterations)
+    return Trainer(game, agents).train(iterations, False)
 
 if __name__ == "__main__":
     pass

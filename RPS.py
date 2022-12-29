@@ -4,7 +4,7 @@ class RPS(Game):
     def __init__(self):
         self.action_count = 3
         self.player_count = 2
-        super().__init__()
+        self._setup()
 
     def _utility(self, index: int, *actions: Iterable) -> float:
         if index == 0:
@@ -45,3 +45,14 @@ class RPS_Rock_Double(RPS):
         if actions[index] == 0:
             return 2
         return 1
+
+class RPS_With_Stone(RPS):
+    def __init__(self):
+        self.action_count = 4
+        self.player_count = 2
+        self._setup()
+    
+    def _utility(self, index: int, *actions: Iterable) -> float:
+        actions = (i if i != 3 else 0 for i in actions )
+        return super()._utility(index, *actions)
+

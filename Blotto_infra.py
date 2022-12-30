@@ -26,16 +26,19 @@ def soldier_dist(i, N, S, out):
             i -= temp
 
 class Blotto(Game):
-    def __init__(self, N, S):
+    def __init__(self, N, S_arr):
         self.N = N
-        self.S = S
+        self.S_arr = S_arr
         self.player_count = 2
-        self.action_count = comb(N + S -1, N-1)
+        self.action_counts = [comb(N + self.S_arr[i] -1, N-1) for i in range(self.player_count)]
+        self.soldier_dists = [[soldier_dist(i, self.N, self.S_arr[j], []) for i in range(self.action_counts[j])] 
+                              for j in range(self.player_count)]
+        self.strategy_maps = [{i:f"{self.soldier_dists[j][i]}" for i in 
+                                range(self.action_counts[j])} for j in range(self.player_count)]
         self._setup()
-
     
     def _utility(self, index: int, *actions: Iterable) -> float:
-        dists = [soldier_dist(i, self.N, self.S, []) for i in actions]
+        dists = [self.soldier_dists[i][actions[i]] for i in range(self.player_count)]
         if index == 0:
             return sum(dists[0] > dists[1]) - sum(dists[0] < dists[1])
         else:

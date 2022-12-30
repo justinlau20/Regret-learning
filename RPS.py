@@ -1,9 +1,10 @@
 from infrastructure import *
 
 class RPS(Game):
+    player_count = 2
+    strategy_maps = [{0:"Rock", 1:"Paper", 2:"Scissors"}] * player_count
     def __init__(self):
-        self.action_count = 3
-        self.player_count = 2
+        self.action_counts = [3, 3]
         self._setup()
 
     def _utility(self, index: int, *actions: Iterable) -> float:
@@ -47,8 +48,9 @@ class RPS_Rock_Double(RPS):
         return 1
 
 class RPS_With_Stone(RPS):
+    strategy_maps = [{0:"Rock", 1:"Paper", 2:"Scissors", 3:"Rock but different label"}] * 2
     def __init__(self):
-        self.action_count = 4
+        self.action_counts = [4, 4]
         self.player_count = 2
         self._setup()
     

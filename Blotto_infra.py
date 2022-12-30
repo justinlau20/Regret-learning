@@ -16,9 +16,9 @@ def partition_matrix(k, s):
         Returns a (K+1) by (S+1) matrix whose i,j th entry is the number of ways to partition the number j
         into the sum of i non-negative numbers where the order does not matter 
     """
-    out = np.array([np.array([1] + [0] * s)])
+    out = np.array([np.array([1] + [0] * s)], dtype=int)
     for i in range(1, k + 1):
-        mul = np.zeros(s + 1)
+        mul = np.zeros(s + 1, dtype=int)
         for j in range(len(mul)):
             if (j - len(mul) + 1) % i == 0:
                 mul[j] = 1
@@ -30,11 +30,10 @@ def partition_matrix(k, s):
 def soldier_dist(i, N, S, out):
     if S == 0:
         out += [0] * N
-        return np.array(out)
+        return np.array(out, dtype=int)
     if N == 1:
         out.append(S)
-        return np.array(out)
-
+        return np.array(out, dtype=int)
     temp = 1
     for s in range(S + 1):
         if s >= 1:
@@ -83,6 +82,15 @@ class Blotto(Game):
         else:
             return -self._utility(0, *actions)
 
+def average_payoff(A, B):
+    s = 0
+
+    for a in A:
+        diff = a - B
+        s += sum(diff > 0) - sum(diff < 0)
+
+    return s / len(A) 
+
 class Collapsed_Blotto(Game):
     def __init__(self, N, S_arr):
         self.N = N
@@ -91,13 +99,27 @@ class Collapsed_Blotto(Game):
         if len(set(S_arr)) == 1:
             self.lookup_mats = [partition_matrix(self.N, self.S_arr[0])] * 2
         else:
-            self.lookup_mats = [partition_matrix(self.N, i) for i in self.S_arr]
-        
-        # self.action_counts = [comb(N + self.S_arr[i] -1, N-1) for i in range(self.player_count)]
-        # self.soldier_dists = [[soldier_dist(i, self.N, self.S_arr[j], []) for i in range(self.action_counts[j])] 
-        #                       for j in range(self.player_count)]
-        # self.strategy_maps = [{i:f"{self.soldier_dists[j][i]}" for i in 
-        #                         range(self.action_counts[j])} for j in range(self.player_count)]
-        # self._setup()
+            self.lookup_mats = [partition_matrix(self.N, self.S_arr[i]) for i in self.S_arr]
 
+        self.action_counts = [self.lookup_mats[i][-1, -1] for i in range(self.player_count)]
+
+        self.soldier_dists = [[soldier_dist_collapsed(i, self.N, self.S_arr[j], self.lookup_mats[j], []) 
+                              for i in range(self.action_counts[j])] for j in range(self.player_count)]
+
+        self.strategy_maps = [{i:f"{self.soldier_dists[j][i]}" for i in 
+                                range(self.action_counts[j])} for j in range(self.player_count)]
+
+    def _get_utility(self, index, actions):
+        dists = [self.soldier_dists[i][actions[i]] for i in range(self.player_count)]
+        random.shuffle(dists[0])
+
+        d = dists[0] - dists[1]
+        temp = sum(d > 0) - sum(d < 0)
+
+        if index == 0:
+            return temp
+        else:
+            return -temp
+
+# Single_Evaluation(Collapsed_Blotto(3, (7, 7)), 10000).viable_strategies(eps=0.01)
     

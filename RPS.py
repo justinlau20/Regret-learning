@@ -19,7 +19,6 @@ class RPS(Game):
         
         elif diff == 0:
             return 0
-
         return 1
 
 class RPS_Rock_Agent(Agent):

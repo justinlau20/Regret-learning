@@ -75,6 +75,7 @@ class Agent(ABC):
         self.action_count = game.action_counts[index]
         self.index:int = index
         self.strategy: Iterable = np.ones(self.action_count) / self.action_count
+        self.strategy_cumsum = np.cumsum(self.strategy)
         self.total_utility: float = 0
         self.cum_strat = None
         
@@ -83,7 +84,7 @@ class Agent(ABC):
         """
         Returns the action of the agent.
         """
-        return random.choices(range(self.action_count), weights=self.strategy)[0]
+        return random.choices(range(self.action_count), cum_weights=self.strategy_cumsum)[0]
 
     def update(self, actions: Iterable):
         """
@@ -117,6 +118,7 @@ class Regret_Minimisation_Agent(Agent):
         else:
             self.strategy /= normalising_const
         self.strategy_sum += self.strategy
+        self.strategy_cumsum = np.cumsum(self.strategy)
 
 class Trainer:
     def __init__(self, game, agents):

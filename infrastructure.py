@@ -28,9 +28,9 @@ class Game(ABC):
     
     def _setup(self):
         self.utility = np.vectorize(self._utility, excluded=['self', 'index'])
-        self.payoff_matrix:Iterable = [self.utility(i, *np.meshgrid(
+        self.payoff_matrix:Iterable = np.array([self.utility(i, *np.meshgrid(
                                         *(range(self.action_counts[j]) for j in range(self.player_count)), indexing='ij'))
-                                         for i in range(self.player_count)]
+                                         for i in range(self.player_count)])
 
     def _get_utility(self, index, actions):
         return self.payoff_matrix[index][actions]
@@ -87,6 +87,7 @@ class Agent(ABC):
         self.strategy_cumsum = np.cumsum(self.strategy)
         self.total_utility: float = 0
         self.cum_strat = None
+        self.avg_overall_regrets = []
         
     def action(self) -> int:
         """
@@ -111,7 +112,6 @@ class Regret_Minimisation_Agent(Agent):
         super().__init__(game, index, prior)
         self.regrets:np.array = np.zeros(self.action_count)
         self.strategy_sum: np.array = np.copy(self.strategy)
-        self.avg_overall_regrets = []
         
     
     def update(self, actions: tuple):
@@ -125,7 +125,6 @@ class Regret_Minimisation_Agent(Agent):
             self.regrets[i] += action_i_utility - chosen_utility
 
         self.strategy = np.maximum(0, self.regrets)
-
         normalising_const = sum(self.strategy)
         
         if normalising_const <=0:
@@ -141,10 +140,32 @@ class Swap_Regret_Agent(Agent):
     def __init__(self, game: Game, index: int, prior=None):
         super().__init__(game, index, prior)
         self.swap_regret = np.zeros((self.action_count, self.action_count))
-        self.play_frequencies = np.zeros(self.action_count)
+        self.cum_swap_diff = np.zeros((self.action_count, self.action_count))
+        self.prev_action = None
+        self.mu = 2 * (max(game.action_counts) - 1) * game.payoff_matrix.max() + 1
 
     def update(self, actions: Iterable):
         chosen_utility = super().update(actions)
+        chosen = actions[self.index]
+        self.prev_action = chosen
+        for i in range(self.action_count):
+            temp = list(actions)
+            temp[self.index] = i
+            temp = tuple(temp)
+            action_i_utility: float = self.game._get_utility(self.index, temp)
+            self.cum_swap_diff[i][chosen] += action_i_utility - chosen_utility
+        
+        row = self.cum_swap_diff[:, chosen].clip(min=0)
+        row[self.prev_action] = 0
+        row = row / (self.t * self.mu)
+        p_stay = 1 - sum(row)
+        row[self.prev_action] = p_stay
+        self.strategy = row
+        self.strategy_sum[chosen] += 1
+        self.strategy_cumsum = np.cumsum(self.strategy)
+        self.avg_overall_regrets.append(self.cum_swap_diff.max() / self.t)
+
+
         
 
 
@@ -183,10 +204,10 @@ class Evaluation():
 
 
 class Single_Evaluation(Evaluation):
-    def __init__(self, game: Game, rounds=100000) -> None:
+    def __init__(self, game: Game, rounds=100000, agent = Regret_Minimisation_Agent) -> None:
         self.rounds = rounds
         self.game = game
-        self.agents: List[Agent] = find_CE(game, iterations=rounds)
+        self.agents: List[Agent] = find_CE(game, agent=agent, iterations=rounds)
         self.agent_count = len(self.agents)
 
     def viable_strategies(self, eps=0.001, dps=3):
@@ -218,8 +239,8 @@ def train_repeatedly(game: Game, each_train, sample_size):
         print(f"Standard deviation of strategy of player {j} is {np.sqrt(strats[:, j].var(axis=0))}")
 
 
-def find_CE(game: Game, iterations=100000):
-    agents = [Regret_Minimisation_Agent(game, i) for i in range(game.player_count)]
+def find_CE(game: Game, agent= Regret_Minimisation_Agent, iterations=100000):
+    agents = [agent(game, i) for i in range(game.player_count)]
     return Trainer(game, agents).train(iterations, False)
 
 

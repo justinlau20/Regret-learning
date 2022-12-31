@@ -82,9 +82,9 @@ class Blotto(Game):
         else:
             return -self._utility(0, *actions)
 
-def average_payoff(A, B):
+def average_payoff(*arrs):
     s = 0
-
+    A, B = arrs
     for a in A:
         diff = a - B
         s += sum(diff > 0) - sum(diff < 0)
@@ -99,7 +99,7 @@ class Collapsed_Blotto(Game):
         if len(set(S_arr)) == 1:
             self.lookup_mats = [partition_matrix(self.N, self.S_arr[0])] * 2
         else:
-            self.lookup_mats = [partition_matrix(self.N, self.S_arr[i]) for i in self.S_arr]
+            self.lookup_mats = [partition_matrix(self.N, self.S_arr[i]) for i in range(self.player_count)]
 
         self.action_counts = [self.lookup_mats[i][-1, -1] for i in range(self.player_count)]
 
@@ -109,17 +109,27 @@ class Collapsed_Blotto(Game):
         self.strategy_maps = [{i:f"{self.soldier_dists[j][i]}" for i in 
                                 range(self.action_counts[j])} for j in range(self.player_count)]
 
-    def _get_utility(self, index, actions):
+        self._setup()
+
+    def _utility(self, index: int, *actions: Iterable) -> float:
         dists = [self.soldier_dists[i][actions[i]] for i in range(self.player_count)]
-        random.shuffle(dists[0])
-
-        d = dists[0] - dists[1]
-        temp = sum(d > 0) - sum(d < 0)
-
+        util = average_payoff(*dists)
         if index == 0:
-            return temp
+            return util
         else:
-            return -temp
+            return -util
+
+    # def _get_utility(self, index, actions):
+    #     dists = [self.soldier_dists[i][actions[i]] for i in range(self.player_count)]
+    #     random.shuffle(dists[0])
+
+    #     d = dists[0] - dists[1]
+    #     temp = sum(d > 0) - sum(d < 0)
+
+    #     if index == 0:
+    #         return temp
+    #     else:
+    #         return -temp
 
 # Single_Evaluation(Collapsed_Blotto(3, (7, 7)), 10000).viable_strategies(eps=0.01)
     

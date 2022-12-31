@@ -119,6 +119,7 @@ class Regret_Minimisation_Agent(Agent):
             self.strategy /= normalising_const
         self.strategy_sum += self.strategy
         self.strategy_cumsum = np.cumsum(self.strategy)
+        self.regrets *= 0.999
 
 class Trainer:
     def __init__(self, game, agents):
@@ -153,8 +154,9 @@ class Evaluation():
 
 class Single_Evaluation(Evaluation):
     def __init__(self, game: Game, rounds=100000) -> None:
-        super().__init__(game, rounds, 1)
-        self.agents: List[Agent] = self.agents[0]
+        self.rounds = rounds
+        self.game = game
+        self.agents: List[Agent] = find_CE(game, iterations=rounds)
         self.agent_count = len(self.agents)
 
     def viable_strategies(self, eps=0.001, dps=3):
@@ -162,7 +164,10 @@ class Single_Evaluation(Evaluation):
             print(f"Viable strategies for agent {index}:")
             for action_index, prob in enumerate(np.round(agent.cum_strat, dps)):
                 if prob >= eps:
-                    print(f"\t Probability of playing {self.game.strategy_maps[index][action_index]} is {prob}.")
+                    if self.game.strategy_maps:
+                        print(f"\t Probability of playing {self.game.strategy_maps[index][action_index] } (with index {action_index}) is {prob}.")
+                    else:
+                        print(f"\t Probability of playing {action_index} is {prob}.")
             print("\n\n\n")
         
 def train_repeatedly(game: Game, each_train, sample_size):

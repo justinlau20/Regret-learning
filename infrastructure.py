@@ -5,6 +5,8 @@ from numpy import cumsum
 from numpy.random import rand
 from collections.abc import Iterable
 from typing import List
+import matplotlib.pyplot as plt
+
 
 class Game(ABC):
     player_count = None
@@ -49,14 +51,16 @@ class Game(ABC):
         """
         pass
 
+
 class BimatrixGame(Game):
     def __init__(self, A, B):
         self.player_count = 2
         self.payoff_matrix = [A, B]
         self.action_counts = np.shape(A)    
 
+
 class Agent(ABC):
-    def __init__(self, game: Game, index: int):
+    def __init__(self, game: Game, index: int, prior=None):
         """
         Encodes information about a player.
 
@@ -71,14 +75,18 @@ class Agent(ABC):
         total_utility:
             Total utility for the agent throughout the game.
         """
+        self.t = 0
         self.game: Game = game
         self.action_count = game.action_counts[index]
         self.index:int = index
-        self.strategy: Iterable = np.ones(self.action_count) / self.action_count
+        if prior is None:
+            self.strategy: Iterable = np.ones(self.action_count) / self.action_count
+        else:
+            self.strategy = prior
+        self.strategy_sum: np.array = np.copy(self.strategy)
         self.strategy_cumsum = np.cumsum(self.strategy)
         self.total_utility: float = 0
         self.cum_strat = None
-        
         
     def action(self) -> int:
         """
@@ -92,13 +100,19 @@ class Agent(ABC):
         """
         chosen_utility = self.game._get_utility(self.index, actions)
         self.total_utility += chosen_utility
+
+        self.strategy_sum += self.strategy
+        self.t += 1
         return chosen_utility
 
+
 class Regret_Minimisation_Agent(Agent):
-    def __init__(self, game: Game, index: int):
-        super().__init__(game, index)
+    def __init__(self, game: Game, index: int, prior=None):
+        super().__init__(game, index, prior)
         self.regrets:np.array = np.zeros(self.action_count)
         self.strategy_sum: np.array = np.copy(self.strategy)
+        self.avg_overall_regrets = []
+        
     
     def update(self, actions: tuple):
         chosen_utility = super().update(actions)
@@ -109,8 +123,9 @@ class Regret_Minimisation_Agent(Agent):
             temp = tuple(temp)
             action_i_utility: float = self.game._get_utility(self.index, temp)
             self.regrets[i] += action_i_utility - chosen_utility
-        # self.strategy = np.array([i if i >= 0 else 0 for i in self.regrets])
+
         self.strategy = np.maximum(0, self.regrets)
+
         normalising_const = sum(self.strategy)
         
         if normalising_const <=0:
@@ -119,7 +134,19 @@ class Regret_Minimisation_Agent(Agent):
             self.strategy /= normalising_const
         self.strategy_sum += self.strategy
         self.strategy_cumsum = np.cumsum(self.strategy)
-        self.regrets *= 0.999
+        self.avg_overall_regrets.append(max(self.regrets) / self.t)
+
+
+class Swap_Regret_Agent(Agent):
+    def __init__(self, game: Game, index: int, prior=None):
+        super().__init__(game, index, prior)
+        self.swap_regret = np.zeros((self.action_count, self.action_count))
+        self.play_frequencies = np.zeros(self.action_count)
+
+    def update(self, actions: Iterable):
+        chosen_utility = super().update(actions)
+        
+
 
 class Trainer:
     def __init__(self, game, agents):
@@ -136,10 +163,12 @@ class Trainer:
             temp = agent.strategy_sum / sum(agent.strategy_sum)
             agent.cum_strat = temp
             strats.append(temp)
+            agent.avg_utility = agent.total_utility / n
             if out:
                 print(f"Utility of Agent {agent.index} is {agent.total_utility}")
                 print(np.round(temp, 3))
         return self.agents
+
 
 class Evaluation():
     def __init__(self, game: Game, rounds, sample_size) -> None:
@@ -151,6 +180,7 @@ class Evaluation():
         self.average_strategy = np.average(self.cum_probs, axis= (0, 1))
         self.sds = np.std(self.cum_probs, axis=0)
         self.game = game
+
 
 class Single_Evaluation(Evaluation):
     def __init__(self, game: Game, rounds=100000) -> None:
@@ -169,7 +199,15 @@ class Single_Evaluation(Evaluation):
                     else:
                         print(f"\t Probability of playing {action_index} is {prob}.")
             print("\n\n\n")
+    
+    def get_strategies(self):
+        return [agent.cum_strat for agent in self.agents]
+    
+    def plot_regrets(self, index=0):
+        plt.plot(self.agents[index].avg_overall_regrets)
+        plt.show()
         
+
 def train_repeatedly(game: Game, each_train, sample_size):
     strats = np.empty((0, game.player_count, game.action_count))
     
@@ -179,9 +217,27 @@ def train_repeatedly(game: Game, each_train, sample_size):
     for j in range(game.player_count):
         print(f"Standard deviation of strategy of player {j} is {np.sqrt(strats[:, j].var(axis=0))}")
 
+
 def find_CE(game: Game, iterations=100000):
     agents = [Regret_Minimisation_Agent(game, i) for i in range(game.player_count)]
     return Trainer(game, agents).train(iterations, False)
+
+
+def evaluate(agent:Agent, index=0, round=1000):
+    game = agent.game
+    n = game.action_counts[1 - index]
+    agents = [0, 0]
+    agents[index] = agent
+    m = 0
+    for i in range(n):
+        prior = np.zeros(n)
+        prior[i] = 1
+        agents[1 - index] = Agent(game, 1- index, prior)
+        outcome = Trainer(game, agents).train(round, out=False)
+        pure_regret = outcome[1 - index].avg_utility
+        m = max(m, pure_regret)
+    return m
+
 
 if __name__ == "__main__":
     pass

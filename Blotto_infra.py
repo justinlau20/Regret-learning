@@ -119,17 +119,25 @@ class Collapsed_Blotto(Game):
         else:
             return -util
 
-    # def _get_utility(self, index, actions):
-    #     dists = [self.soldier_dists[i][actions[i]] for i in range(self.player_count)]
-    #     random.shuffle(dists[0])
+class Surrogate_Blotto_Agent(Agent):
+    def __init__(self, game: Collapsed_Blotto, b_game:Blotto, index: int, prior=None, save_strat_hist=False):
+        self.game: Collapsed_Blotto
+        self.b_game = b_game
+        super().__init__(game, index, prior, save_strat_hist)
+    
+    def update(self, actions: Iterable):
+        # return super().update(actions)
+        pass
 
-    #     d = dists[0] - dists[1]
-    #     temp = sum(d > 0) - sum(d < 0)
+    def action(self) -> int:
+        collapsed_action = super().action()
+        dist = soldier_dist_collapsed(collapsed_action, self.game.N, self.game.S_arr[self.index], self.game.lookup_mats[self.index], [])
+        dist = np.random.permutation(dist)
+        for i in range(self.b_game.action_counts[self.index]):
+            if all(dist == soldier_dist(i, self.game.N, self.game.S_arr[self.index], [])):
+                return i
+        print(dist)
+        print(soldier_dist(i, self.game.N, self.game.S_arr[self.index], []))
+        raise Exception(">:(")
 
-    #     if index == 0:
-    #         return temp
-    #     else:
-    #         return -temp
-
-# Single_Evaluation(Collapsed_Blotto(3, (7, 7)), 10000).viable_strategies(eps=0.01)
     
